@@ -1,0 +1,30 @@
+From: doujialong <doujialong@users.noreply.github.com>
+Subject: [PATCH] ARM: dts: sun8i-h3: nanopi-m1-plus: fix RGMII PHY mode
+
+The NanoPi M1 Plus uses a Realtek RTL8211E RGMII PHY. With the upstream
+DTS using plain "rgmii" phy-mode, neither the MAC nor the PHY inserts
+the clock delay required by RGMII, which results in a link coming up
+(LEDs on) but no traffic being able to pass in either direction.
+
+Change phy-mode to "rgmii-id" so that the PHY inserts the internal RX
+and TX clock delays. This matches what other H3 boards using the same
+external RTL8211E PHY (e.g. NanoPi K1 Plus, OrangePi Plus 2E) do and
+restores working ethernet on NanoPi M1 Plus.
+
+Reported-by: doujialong
+Signed-off-by: doujialong <doujialong@users.noreply.github.com>
+---
+ arch/arm/boot/dts/sun8i-h3-nanopi-m1-plus.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/arch/arm/boot/dts/sun8i-h3-nanopi-m1-plus.dts
++++ b/arch/arm/boot/dts/sun8i-h3-nanopi-m1-plus.dts
+@@ -90,7 +90,7 @@
+ 	pinctrl-0 = <&emac_rgmii_pins>;
+ 	phy-supply = <&reg_gmac_3v3>;
+ 	phy-handle = <&ext_rgmii_phy>;
+-	phy-mode = "rgmii";
++	phy-mode = "rgmii-id";
+ 
+ 	status = "okay";
+ };
