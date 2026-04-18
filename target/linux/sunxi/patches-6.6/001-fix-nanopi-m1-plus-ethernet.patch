@@ -1,0 +1,18 @@
+--- a/arch/arm/boot/dts/sun8i-h3-nanopi-m1-plus.dtsi
++++ b/arch/arm/boot/dts/sun8i-h3-nanopi-m1-plus.dtsi
+@@ -25,6 +25,15 @@
+       phy-handle = <&rgmii_phy>;
+       phy-mode = "rgmii";
+       pinctrl-names = "default";
+       pinctrl-0 = <&rgmii_pins>;
++      /* Fix RGMII PHY timing issue */
++      rd,enable-rgmii-timing;
++      rd,timing = <0 0 0 0>;
++    };
++
++    rgmii_phy: ethernet-phy@0 {
++        compatible = "phy-ethernet";
++        reg = <0>;
++    };
++
+   };
