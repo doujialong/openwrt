@@ -1,26 +1,25 @@
 # -----------------------------------------------------------------------------
 # OpenWrt 23.05 seed config for FriendlyARM NanoPi M1 Plus (Allwinner H3)
 #
-# This is a "seed" config. The build pipeline copies it to .config and then
-# runs `make defconfig` which fills in all CONFIG_* defaults and dependencies.
+# "Base system" profile:
+#   - Only ships LuCI + common tools + the kernel modules OpenClash / similar
+#     proxy apps need.  Plugins themselves (openclash, adguardhome, mosdns,
+#     smartdns, ...) are NOT compiled into the image.  Install them afterwards
+#     with `opkg update && opkg install <pkg>` once the device is online.
 #
-# Includes:
-#   - Target: sunxi / cortexa7 / friendlyarm_nanopi-m1-plus
-#   - LuCI web UI (bootstrap theme) + basic network/admin apps
-#   - OpenClash (needs kenzok8/small-package feed)
-#   - DNS tools: SmartDNS, AdGuard Home, MosDNS, adblock-fast
-#   - Common diagnostic tools: htop, ethtool, tcpdump-mini, mtr, iperf3, curl
+# Why plugins are off:
+#   - openclash / adguardhome / mosdns are Go programs whose current versions
+#     demand Go >= 1.24.9, while OpenWrt 23.05 ships Go 1.21.13.  Compiling
+#     them in-tree requires toolchain patches we want to avoid on this branch.
 # -----------------------------------------------------------------------------
 
 CONFIG_TARGET_sunxi=y
 CONFIG_TARGET_sunxi_cortexa7=y
 CONFIG_TARGET_sunxi_cortexa7_DEVICE_friendlyarm_nanopi-m1-plus=y
 
-# Both squashfs sdcard.img.gz (recommended) and ext4 image
+# Images
 CONFIG_TARGET_ROOTFS_SQUASHFS=y
 CONFIG_TARGET_ROOTFS_EXT4=y
-
-# Give the overlay a bit more room so OpenClash/GeoIP fit comfortably
 CONFIG_TARGET_ROOTFS_PARTSIZE=512
 CONFIG_TARGET_KERNEL_PARTSIZE=32
 
@@ -36,36 +35,28 @@ CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-opkg-zh-cn=y
 
-# ---- OpenClash (from kenzok8/small-package) ----
-CONFIG_PACKAGE_luci-app-openclash=y
-CONFIG_PACKAGE_luci-i18n-openclash-zh-cn=y
-
-# ---- DNS / ad-blocking ----
-CONFIG_PACKAGE_smartdns=y
-CONFIG_PACKAGE_luci-app-smartdns=y
-CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y
-
-CONFIG_PACKAGE_adguardhome=y
-CONFIG_PACKAGE_luci-app-adguardhome=y
-
-CONFIG_PACKAGE_mosdns=y
-CONFIG_PACKAGE_luci-app-mosdns=y
-
-CONFIG_PACKAGE_adblock-fast=y
-CONFIG_PACKAGE_luci-app-adblock-fast=y
-
-# dnsmasq-full gives ipset/nftset/dnssec, commonly needed by the above
-# Will replace the default dnsmasq via feeds.
+# ---- dnsmasq-full replaces dnsmasq (ipset/nftset/dnssec needed by many plugins) ----
 CONFIG_PACKAGE_dnsmasq-full=y
 # CONFIG_PACKAGE_dnsmasq is not set
 
-# ---- Required kernel modules / libs ----
+# ---- Kernel modules that proxy/dns plugins (OpenClash, v2ray, mosdns, ...) rely on.
+#      Install these up front because kmods are tied to the exact kernel and
+#      cannot be reliably added via opkg after flashing.
 CONFIG_PACKAGE_kmod-tun=y
 CONFIG_PACKAGE_kmod-inet-diag=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
 CONFIG_PACKAGE_kmod-ipt-tproxy=y
+CONFIG_PACKAGE_kmod-ipt-nat-extra=y
+CONFIG_PACKAGE_kmod-ipset=y
+CONFIG_PACKAGE_ip-full=y
+CONFIG_PACKAGE_ipset=y
+CONFIG_PACKAGE_iptables-nft=y
+CONFIG_PACKAGE_nftables-json=y
+
+# ---- Certificates / networking userspace used by HTTPS-based plugins ----
 CONFIG_PACKAGE_ca-certificates=y
 CONFIG_PACKAGE_ca-bundle=y
+CONFIG_PACKAGE_libustream-openssl=y
 
 # ---- SSH / diag tools ----
 CONFIG_PACKAGE_openssh-sftp-server=y
@@ -77,8 +68,9 @@ CONFIG_PACKAGE_iperf3=y
 CONFIG_PACKAGE_curl=y
 CONFIG_PACKAGE_wget-ssl=y
 CONFIG_PACKAGE_bind-dig=y
+CONFIG_PACKAGE_nano=y
 
-# ---- USB / storage (handy on SBC) ----
+# ---- USB / storage ----
 CONFIG_PACKAGE_kmod-usb-storage=y
 CONFIG_PACKAGE_kmod-fs-ext4=y
 CONFIG_PACKAGE_kmod-fs-vfat=y

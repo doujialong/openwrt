@@ -1,15 +1,22 @@
 # NanoPi M1 Plus build (OpenWrt 23.05)
 
 本目录包含在 GitHub Actions 上为 **FriendlyARM NanoPi M1 Plus**（Allwinner H3）
-构建带 OpenClash 的 OpenWrt 23.05 固件所需的全部文件。
+构建 OpenWrt 23.05 基础固件所需的全部文件。
+
+这份配置走的是 **"基础系统 + 插件所需的内核模块"** 路线：固件本身只带 LuCI
+和常用诊断工具；OpenClash / AdGuardHome / MosDNS / SmartDNS 这些 Go 写的代理
+/ DNS 插件在 23.05 的 Go 工具链（1.21）下会因为 `go.mod` 要求 Go ≥ 1.24 而
+编不出来，所以不走 in-tree 编译，改成固件起来后用 `opkg install` 安装。
+固件已经预埋了 `kmod-tun` / `kmod-*-tproxy` / `dnsmasq-full` 等插件会依赖
+的内核模块。
 
 ## 文件说明
 
 | 路径                                                                                                       | 作用                                                                     |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `target/linux/sunxi/patches-5.15/700-arm-dts-sun8i-h3-nanopi-m1-plus-fix-rgmii-phy-mode.patch`             | 内核 patch：把 `phy-mode` 从 `rgmii` 改成 `rgmii-id`，修复以太网不通信 |
-| `.github/nanopi-m1-plus/config.seed`                                                                       | 精简版 `.config`，列出最终要选中的包（OpenClash + DNS 套件等）           |
-| `.github/nanopi-m1-plus/feeds.extra.conf`                                                                  | 追加的第三方 feed（`kenzok8/small-package`，提供 OpenClash 等 LuCI 应用）|
+| `.github/nanopi-m1-plus/config.seed`                                                                       | 精简版 `.config`，基础系统 + 插件会用到的内核模块                        |
+| `.github/nanopi-m1-plus/feeds.extra.conf`                                                                  | 追加的第三方 feed（当前为空）                                            |
 | `.github/nanopi-m1-plus/build-local.sh`                                                                    | Linux 主机本地构建脚本                                                   |
 | `.github/workflows/build-nanopi-m1-plus.yml`                                                               | GitHub Actions 工作流                                                    |
 
