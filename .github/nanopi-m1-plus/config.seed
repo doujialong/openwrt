@@ -50,9 +50,13 @@ CONFIG_PACKAGE_iptables-nft=y
 CONFIG_PACKAGE_nftables-json=y
 
 # ---- Certificates / networking userspace ----
+# NOTE: do NOT force libustream-openssl here, ImmortalWRT 24.10's default
+# wpad-openssl stack pulls in libustream-mbedtls transitively, forcing
+# libustream-openssl=y on top of that triggers
+#   check_data_file_clashes: /lib/libustream-ssl.so is provided by both
+# at `package/install` time.  Let the dependency graph pick one.
 CONFIG_PACKAGE_ca-certificates=y
 CONFIG_PACKAGE_ca-bundle=y
-CONFIG_PACKAGE_libustream-openssl=y
 
 # ---- OpenClash (luci-app-openclash is pure Lua in immortalwrt-luci feed) ----
 CONFIG_PACKAGE_luci-app-openclash=y
