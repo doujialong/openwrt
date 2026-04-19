@@ -1,0 +1,33 @@
+From: doujialong <doujialong@users.noreply.github.com>
+Subject: [PATCH] ARM: dts: sun8i-h3-nanopi-m1-plus: switch EMAC to rgmii-id
+
+The NanoPi M1 Plus ships a Realtek RTL8211E PHY wired to the Allwinner
+H3 EMAC via RGMII.  On the current device tree the EMAC is declared as
+"rgmii", which leaves the clock-delay up to the PHY.  The RTL8211E on
+this board does not have its internal delay enabled by default, so the
+link comes up (LEDs blink, auto-negotiation reports 1000BASE-T full
+duplex), but no packets can actually flow through the MAC: outgoing
+frames get dropped and ping shows 100% packet loss.
+
+Switch the EMAC phy-mode to "rgmii-id" so the Linux kernel asks the
+PHY to add RX and TX clock delays internally.  This matches what
+DietPi / mainline U-Boot do on this board and restores working
+gigabit Ethernet on OpenWrt / ImmortalWRT.
+
+Reported-by: NanoPi M1 Plus owners
+Signed-off-by: doujialong <doujialong@users.noreply.github.com>
+---
+ arch/arm/boot/dts/allwinner/sun8i-h3-nanopi-m1-plus.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/arch/arm/boot/dts/allwinner/sun8i-h3-nanopi-m1-plus.dts
++++ b/arch/arm/boot/dts/allwinner/sun8i-h3-nanopi-m1-plus.dts
+@@ -90,7 +90,7 @@
+ 	pinctrl-0 = <&emac_rgmii_pins>;
+ 	phy-supply = <&reg_gmac_3v3>;
+ 	phy-handle = <&ext_rgmii_phy>;
+-	phy-mode = "rgmii";
++	phy-mode = "rgmii-id";
+ 
+ 	status = "okay";
+ };

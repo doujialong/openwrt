@@ -1,0 +1,151 @@
+name: Build ImmortalWRT 24.10 for NanoPi M1 Plus
+
+on:
+  push:
+    branches:
+      - immortalwrt-24.10-nanopi-m1-plus
+    paths:
+      - '.github/workflows/build-nanopi-m1-plus.yml'
+      - '.github/nanopi-m1-plus/**'
+      - 'target/linux/sunxi/patches-6.6/**'
+  workflow_dispatch:
+    inputs:
+      upload_release:
+        description: "Create GitHub Release from firmware"
+        required: false
+        default: "true"
+
+permissions:
+  contents: write
+
+env:
+  TZ: Asia/Shanghai
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build:
+    name: Build firmware
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Free up disk space on runner
+        run: |
+          set -e
+          echo "Disk before cleanup:"
+          df -h /
+          sudo docker image prune --all --force >/dev/null 2>&1 || true
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/share/powershell \
+            /usr/local/lib/node_modules \
+            "$AGENT_TOOLSDIRECTORY" || true
+          sudo apt-get -y purge \
+            azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable \
+            firefox powershell mono-devel php* dotnet-* mysql-* mssql-* \
+            'temurin-*-jdk' 'adoptopenjdk-*' || true
+          sudo apt-get -y autoremove --purge
+          sudo apt-get -y clean
+          echo "Disk after cleanup:"
+          df -h /
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
+            gettext git libncurses5-dev libssl-dev python3-distutils rsync \
+            unzip zlib1g-dev file wget libfuse-dev libelf-dev ecj fastjar java-propose-classpath \
+            libncursesw5-dev libpython3-dev python3 python3-pip python3-ply python3-pyelftools \
+            python3-setuptools swig time xsltproc zstd
+
+      - name: Prepare feeds
+        run: |
+          cp feeds.conf.default feeds.conf
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Apply seed .config
+        run: |
+          cp .github/nanopi-m1-plus/config.seed .config
+          make defconfig
+          echo "--- Effective device selection ---"
+          grep -E 'CONFIG_TARGET_(sunxi|BOARD|DEVICE)' .config | head -20 || true
+
+      - name: Download sources (with retry)
+        run: |
+          for i in 1 2 3; do
+            make download -j$(nproc) && break
+            echo "Download attempt $i failed, retrying..."
+            sleep 10
+          done
+          # Hash integrity check
+          find dl -size -1024c -exec ls -l {} \; -exec rm -f {} \;
+
+      - name: Compile firmware
+        run: |
+          echo "CPU cores: $(nproc)"
+          make -j$(nproc) || make -j1 V=s
+
+      - name: Organize artifacts
+        id: artifact
+        run: |
+          set -e
+          OUT_DIR="bin/targets/sunxi/cortexa7"
+          if [ ! -d "$OUT_DIR" ]; then
+            echo "Build output directory not found: $OUT_DIR"
+            ls -R bin/targets || true
+            exit 1
+          fi
+          mkdir -p artifact
+          cp -v $OUT_DIR/*nanopi-m1-plus*.img.gz artifact/ 2>/dev/null || true
+          cp -v $OUT_DIR/sha256sums artifact/ 2>/dev/null || true
+          cp -v $OUT_DIR/*.manifest artifact/ 2>/dev/null || true
+          cp -v $OUT_DIR/config.buildinfo artifact/ 2>/dev/null || true
+          ls -lh artifact/
+          echo "date=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_OUTPUT
+
+      - name: Upload firmware as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-24.10-nanopi-m1-plus-${{ steps.artifact.outputs.date }}
+          path: artifact/
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' || github.event.inputs.upload_release != 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nanopi-m1-plus-immortal-${{ steps.artifact.outputs.date }}
+          name: NanoPi M1 Plus ImmortalWRT 24.10 (${{ steps.artifact.outputs.date }})
+          body: |
+            Automated ImmortalWRT 24.10 build for FriendlyARM NanoPi M1 Plus.
+
+            Included fixes / features:
+            - Ethernet RGMII timing fix (phy-mode `rgmii` -> `rgmii-id`), resolves
+              the "link up but no traffic" bug on Allwinner H3 + RTL8211E.
+            - OpenClash (`luci-app-openclash`), clash core auto-downloaded on first
+              run.
+            - SmartDNS + `luci-app-smartdns`.
+            - MosDNS 5.3.3 + `luci-app-mosdns` with geoip / geosite.
+            - AdGuard Home 0.107.x.
+            - adblock-fast + LuCI app.
+            - Chinese (zh-cn) LuCI translations for everything above.
+            - `dnsmasq-full`, all kmods required by the proxy / DNS stack.
+
+            First boot:
+            1. Flash the `.img.gz` to an SD card with balenaEtcher or Rufus.
+            2. Power on the board, LAN port should obtain a DHCP lease on the
+               same subnet as the downstream port of the board at 192.168.1.1.
+            3. Web UI: http://192.168.1.1 (user `root`, empty password).
+            4. In Services -> OpenClash, upload your subscription / config.
+          files: artifact/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
